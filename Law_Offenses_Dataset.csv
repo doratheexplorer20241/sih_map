@@ -1,0 +1,60 @@
+Field of Law,Offense,Bailable
+Criminal Law,Theft,Yes
+Criminal Law,Assault,Yes
+Criminal Law,Murder,No
+Criminal Law,Rape,No
+Criminal Law,Kidnapping,No
+Criminal Law,Burglary,Yes
+Criminal Law,Embezzlement,Yes
+Criminal Law,Drug Possession (Small Quantity),Yes
+Criminal Law,Drug Trafficking,No
+Criminal Law,Arson,No
+Civil Law,Trespass,Yes
+Civil Law,Property Disputes,Yes
+Civil Law,Breach of Contract,Yes
+Civil Law,Defamation,Yes
+Civil Law,Consumer Rights Violation,Yes
+Civil Law,Debt Recovery,Yes
+Intellectual Property Law,Copyright Infringement,Yes
+Intellectual Property Law,Trademark Violation,Yes
+Intellectual Property Law,Patent Infringement,Yes
+Intellectual Property Law,Trade Secret Misappropriation,Yes
+Tax Law,Tax Evasion,No
+Tax Law,Late Tax Filing,Yes
+Tax Law,False Tax Declaration,No
+Tax Law,Failure to Withhold Tax,Yes
+Corporate Law,Insider Trading,No
+Corporate Law,Fraud,No
+Corporate Law,Breach of Fiduciary Duty,Yes
+Corporate Law,Corporate Espionage,No
+Family Law,Domestic Violence,No
+Family Law,Child Custody Disputes,Yes
+Family Law,Alimony Non-Payment,Yes
+Family Law,Child Support Non-Payment,Yes
+Family Law,Adoption Fraud,No
+Environmental Law,Illegal Dumping,Yes
+Environmental Law,Violation of Emission Standards,Yes
+Environmental Law,Poaching Endangered Species,No
+Environmental Law,Deforestation Without Permit,Yes
+Cyber Law,Hacking,No
+Cyber Law,Identity Theft,No
+Cyber Law,Online Defamation,Yes
+Cyber Law,Cyberstalking,No
+Cyber Law,Phishing Scams,No
+Labor Law,Unfair Dismissal,Yes
+Labor Law,Workplace Harassment,Yes
+Labor Law,Unpaid Wages,Yes
+Labor Law,Violation of Safety Regulations,Yes
+Labor Law,Discrimination,No
+International Law,Human Trafficking,No
+International Law,War Crimes,No
+International Law,Piracy,No
+International Law,Diplomatic Immunity Violations,Yes
+International Law,Illegal Arms Trade,No
+Arbitration Law,Violation of Arbitration Agreement,Yes
+Arbitration Law,Failure to Pay Arbitration Award,Yes
+Arbitration Law,Fraudulent Arbitration Claim,Yes
+Maritime Law,Illegal Fishing,Yes
+Maritime Law,Violation of Maritime Borders,Yes
+Maritime Law,Smuggling via Ships,No
+Maritime Law,Pollution of International Waters,No
