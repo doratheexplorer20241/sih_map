@@ -1,193 +1,189 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from geopy.distance import geodesic
+from sklearn.preprocessing import StandardScaler
+from sklearn.neighbors import KNeighborsClassifier
 import folium
 from streamlit_folium import st_folium
+from geopy.distance import geodesic
 
-# Load the data
-@st.cache_data
+# Initialize session state
+if 'lawyers_data' not in st.session_state:
+    st.session_state.lawyers_data = None
+if 'offense_categories' not in st.session_state:
+    st.session_state.offense_categories = None
+if 'recommendations' not in st.session_state:
+    st.session_state.recommendations = None
+if 'map_data' not in st.session_state:
+    st.session_state.map_data = None
+
+@st.cache_data(ttl=3600)
 def load_data():
+    """Load and preprocess the data"""
     try:
-        # Load lawyers data from CSV
         lawyers_data = pd.read_csv('Indian_Lawyers_Dataset.csv')
-        
-        # Load offense categories from CSV
         offense_categories = pd.read_csv('Law_Offenses_Dataset.csv')
+        
+        # Calculate success rate
+        lawyers_data['Success Rate'] = (lawyers_data['Number of Wins'] / lawyers_data['Total Cases']) * 100
         
         return lawyers_data, offense_categories
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
-        return pd.DataFrame(), pd.DataFrame()
+        return None, None
 
-def calculate_success_rate(row):
-    return (row['Number of Wins'] / row['Total Cases']) * 100
+def get_relevant_lawyers_knn(offense, lawyers_data, offense_categories):
+    """Use KNN to find relevant lawyers for the given offense"""
+    try:
+        # Extract field of law for the offense
+        offense_info = offense_categories[offense_categories['Offense'] == offense].iloc[0]
+        field_of_law = offense_info['Field of Law']
+        
+        # Filter lawyers by field of law
+        relevant_lawyers = lawyers_data[lawyers_data['Field of Law'] == field_of_law]
+        
+        if relevant_lawyers.empty:
+            return None
 
-def create_map(lawyers_df, user_location=None):
-    # Create a map centered on India
-    center_lat = 20.5937
-    center_lon = 78.9629
-    if user_location:
-        center_lat, center_lon = user_location
-    
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=5)
-    
-    # Add markers for each lawyer
-    for idx, lawyer in lawyers_df.iterrows():
-        popup_text = f"""
-        <b>{lawyer['Lawyer Name']}</b><br>
-        Field: {lawyer['Field of Law']}<br>
-        Success Rate: {(lawyer['Number of Wins']/lawyer['Total Cases']*100):.1f}%<br>
-        Cases Won: {lawyer['Number of Wins']}/{lawyer['Total Cases']}<br>
-        Fee: ₹{lawyer['Per Case Fee (INR)']:,.2f}
-        """
-        
-        folium.Marker(
-            [lawyer['Latitude'], lawyer['Longitude']],
-            popup=folium.Popup(popup_text, max_width=300),
-            tooltip=lawyer['Lawyer Name']
-        ).add_to(m)
-    
-    # Add user location if provided
-    if user_location:
-        folium.Marker(
-            user_location,
-            popup="Your Location",
-            icon=folium.Icon(color='red', icon='info-sign'),
-            tooltip="Your Location"
-        ).add_to(m)
-    
-    return m
+        # Features for KNN
+        X = relevant_lawyers[['Success Rate', 'Total Cases']]
+        y = relevant_lawyers.index
 
-def get_lawyer_recommendations(offense, user_location=None):
-    lawyers_data, _ = load_data()
-    
-    # Filter lawyers based on offense category field of law
-    field_of_law = 'Criminal Law'  # We can expand this based on offense categories mapping
-    relevant_lawyers = lawyers_data[lawyers_data['Field of Law'] == field_of_law].copy()
-    
-    if relevant_lawyers.empty:
-        return pd.DataFrame()
-    
-    # Calculate success rate
-    relevant_lawyers['Success Rate'] = relevant_lawyers.apply(calculate_success_rate, axis=1)
-    
-    # Calculate distance if user location is provided
-    if user_location:
-        relevant_lawyers['Distance'] = relevant_lawyers.apply(
-            lambda x: geodesic(user_location, (x['Latitude'], x['Longitude'])).kilometers,
-            axis=1
-        )
-        
-        # Normalize factors
-        max_distance = relevant_lawyers['Distance'].max()
-        min_distance = relevant_lawyers['Distance'].min()
-        max_fee = relevant_lawyers['Per Case Fee (INR)'].max()
-        min_fee = relevant_lawyers['Per Case Fee (INR)'].min()
-        
-        # Calculate composite score (higher is better)
-        relevant_lawyers['Score'] = (
-            relevant_lawyers['Success Rate'] * 0.4 +
-            ((max_fee - relevant_lawyers['Per Case Fee (INR)']) / (max_fee - min_fee)) * 0.3 +
-            ((max_distance - relevant_lawyers['Distance']) / (max_distance - min_distance)) * 0.3
-        )
-    else:
-        # Without location, only consider success rate and fees
-        max_fee = relevant_lawyers['Per Case Fee (INR)'].max()
-        min_fee = relevant_lawyers['Per Case Fee (INR)'].min()
-        
-        relevant_lawyers['Score'] = (
-            relevant_lawyers['Success Rate'] * 0.6 +
-            ((max_fee - relevant_lawyers['Per Case Fee (INR)']) / (max_fee - min_fee)) * 0.4
-        )
-    
-    # Sort by score and return top 5
-    return relevant_lawyers.nlargest(5, 'Score')
+        # Use KNN to rank lawyers
+        knn = KNeighborsClassifier(n_neighbors=5)
+        knn.fit(X, y)
+        distances, indices = knn.kneighbors(X)
+
+        # Extract top lawyers based on KNN
+        top_lawyers = relevant_lawyers.iloc[indices[0]]
+        return top_lawyers
+    except Exception as e:
+        st.error(f"Error with KNN calculation: {str(e)}")
+        return None
+
+def create_map(recommended_lawyers, user_location=None):
+    """Create a map with lawyer and user locations"""
+    try:
+        # Map center
+        if user_location:
+            center_lat, center_lon = user_location
+        else:
+            center_lat = recommended_lawyers['Latitude'].mean()
+            center_lon = recommended_lawyers['Longitude'].mean()
+
+        # Create map
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+
+        # Add lawyer markers
+        for _, lawyer in recommended_lawyers.iterrows():
+            folium.Marker(
+                [lawyer['Latitude'], lawyer['Longitude']],
+                popup=f"{lawyer['Lawyer Name']}",
+                icon=folium.Icon(color='blue', icon='info-sign')
+            ).add_to(m)
+
+        # Add user location marker
+        if user_location:
+            folium.Marker(
+                [user_location[0], user_location[1]],
+                popup="Your Location",
+                icon=folium.Icon(color='red', icon='info-sign')
+            ).add_to(m)
+
+        return m
+    except Exception as e:
+        st.error(f"Error creating map: {str(e)}")
+        return None
 
 def main():
+    st.set_page_config(page_title="Lawyer Recommendation System", layout="wide")
     st.title("Lawyer Recommendation System")
-    
-    lawyers_data, offense_categories = load_data()
-    
-    if lawyers_data.empty or offense_categories.empty:
-        st.error("Unable to load data. Please check if the CSV files are present and properly formatted.")
+
+    # Load data
+    if st.session_state.lawyers_data is None or st.session_state.offense_categories is None:
+        st.session_state.lawyers_data, st.session_state.offense_categories = load_data()
+
+    if st.session_state.lawyers_data is None or st.session_state.offense_categories is None:
+        st.error("Failed to load data. Please check if the CSV files are present.")
         return
-    
-    # Create tabs for different views
-    tab1, tab2 = st.tabs(["Find a Lawyer", "View All Lawyers"])
-    
-    with tab1:
-        st.header("Find a Lawyer")
-        
-        # Offense selection
-        offense = st.selectbox(
-            "Select the type of offense:",
-            options=offense_categories['Offense'].unique()
-        )
-        
-        # Optional location input
-        use_location = st.checkbox("Include my location for better recommendations")
-        user_location = None
-        
-        if use_location:
-            col1, col2 = st.columns(2)
-            with col1:
-                latitude = st.number_input("Your Latitude", value=28.6139)
-            with col2:
-                longitude = st.number_input("Your Longitude", value=77.2090)
-            user_location = (latitude, longitude)
-        
-        if st.button("Get Recommendations"):
-            recommendations = get_lawyer_recommendations(offense, user_location)
-            
-            if recommendations.empty:
+
+    # User inputs
+    offense = st.selectbox(
+        "Select the type of offense:",
+        options=st.session_state.offense_categories['Offense'].unique(),
+        key='offense_select'
+    )
+
+    # Display offense information
+    offense_info = st.session_state.offense_categories[
+        st.session_state.offense_categories['Offense'] == offense
+    ].iloc[0]
+    # st.info(f"Field of Law: {offense_info['Field of Law']} | Bailable: {offense_info['Bailable']}")
+
+    use_location = st.checkbox("Include my location for better recommendations", key='use_location')
+    user_location = None
+
+    if use_location:
+        col1, col2 = st.columns(2)
+        with col1:
+            latitude = st.number_input("Your Latitude", value=28.6139, key='lat_input')
+        with col2:
+            longitude = st.number_input("Your Longitude", value=77.2090, key='lon_input')
+        user_location = (latitude, longitude)
+
+    # Get recommendations button
+    if st.button("Get Recommendations", key='get_recommendations'):
+        with st.spinner("Finding the best lawyers for your case..."):
+            recommendations = get_relevant_lawyers_knn(
+                offense,
+                st.session_state.lawyers_data,
+                st.session_state.offense_categories
+            )
+
+            if recommendations is None or recommendations.empty:
                 st.warning("No lawyers found matching your criteria.")
             else:
-                # Display map with recommended lawyers
-                st.subheader("Lawyer Locations")
-                map_data = create_map(recommendations, user_location)
-                st_folium(map_data, width=800, height=400)
-                
-                st.subheader("Recommended Lawyers")
-                
-                for idx, lawyer in recommendations.iterrows():
-                    with st.expander(f"{lawyer['Lawyer Name']} - Success Rate: {lawyer['Success Rate']:.1f}%"):
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.write("**Contact Information:**")
-                            st.write(f"📱 Mobile: {lawyer['Mobile']}")
-                            st.write(f"📧 Email: {lawyer['Email']}")
-                            
-                        with col2:
-                            st.write("**Experience:**")
-                            st.write(f"Total Cases: {lawyer['Total Cases']}")
-                            st.write(f"Wins: {lawyer['Number of Wins']}")
-                            st.write(f"Fee per Case: ₹{lawyer['Per Case Fee (INR)']:,.2f}")
-                        
-                        st.write("**Profile:**")
-                        st.write(lawyer['Profile'])
-                        
-                        if user_location:
-                            distance = geodesic(
-                                user_location,
-                                (lawyer['Latitude'], lawyer['Longitude'])
-                            ).kilometers
-                            st.write(f"📍 Distance: {distance:.1f} km")
-    
-    with tab2:
-        st.header("All Lawyers")
-        
-        # Display map with all lawyers
+                st.session_state.recommendations = recommendations
+                st.session_state.map_data = create_map(recommendations, user_location)
+
+    # Display results if available
+    if st.session_state.recommendations is not None and st.session_state.map_data is not None:
         st.subheader("Lawyer Locations")
-        map_data = create_map(lawyers_data)
-        st_folium(map_data, width=800, height=400)
-        
-        # Display all lawyers in a table
-        st.subheader("Lawyer Details")
-        display_cols = ['Lawyer Name', 'Field of Law', 'Number of Wins', 'Total Cases', 
-                       'Per Case Fee (INR)', 'Mobile', 'Email']
-        st.dataframe(lawyers_data[display_cols])
+        st_folium(st.session_state.map_data, width=800, height=600)
+
+        col_left, col_right = st.columns([3, 1])
+
+        with col_left:
+            st.subheader("Recommended Lawyers")
+        with col_right:
+            if st.button("Sort by Price (Ascending)",type='primary'):
+                st.session_state.recommendations = st.session_state.recommendations.sort_values(by='Per Case Fee (INR)')
+            if st.button("Sort by Price (Descending)",type='primary'):
+                st.session_state.recommendations = st.session_state.recommendations.sort_values(by='Per Case Fee (INR)', ascending=False)
+
+        for _, lawyer in st.session_state.recommendations.iterrows():
+            with st.expander(f"{lawyer['Lawyer Name']} - Success Rate: {lawyer['Success Rate']:.1f}%"):
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.write("**Contact Information:**")
+                    st.write(f"📱 Mobile: {lawyer['Mobile']}")
+                    st.write(f"📧 Email: {lawyer['Email']}")
+
+                with col2:
+                    st.write("**Experience:**")
+                    st.write(f"Total Cases: {lawyer['Total Cases']}")
+                    st.write(f"Wins: {lawyer['Number of Wins']}")
+                    st.write(f"Fee per Case: ₹{lawyer['Per Case Fee (INR)']:,.2f}")
+
+                st.write("**Profile:**")
+                st.write(lawyer['Profile'])
+
+                st.write("**Cases Handled:**")
+                st.write(lawyer['Cases Handled'])
+
+                if user_location and 'Distance' in lawyer:
+                    st.write(f"📍 Distance: {lawyer['Distance']:.1f} km")
 
 if __name__ == "__main__":
     main()
