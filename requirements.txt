@@ -5,5 +5,5 @@ numpy
 geopy
 folium
 streamlit-folium
-folium-plugins
 --upgrade folium
+folium-plugins
