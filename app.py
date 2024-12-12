@@ -495,16 +495,16 @@ def main():
                 with st.expander("View Details", expanded=(idx == sorted_recommendations.index[0])):
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.write("*Contact Information:*")
+                        st.write("**Contact Information:**")
                         st.write(f"📱 Mobile: {lawyer['Mobile']}")
                         st.write(f"📧 Email: {lawyer['Email']}")
                     with col2:
-                        st.write("*Experience:*")
+                        st.write("**Experience:**")
                         st.write(f"Total Cases: {lawyer['Total Cases']}")
                         st.write(f"Wins: {lawyer['Number of Wins']}")
                         st.write(f"Success Rate: {(lawyer['Number of Wins']/lawyer['Total Cases']*100):.1f}%")
                         st.write(f"Fee per Case: ₹{lawyer['Per Case Fee (INR)']:,.2f}")
-                    st.write("*Profile:*")
+                    st.write("**Profile:**")
                     st.write(lawyer['Profile'])
                     if st.session_state.user_location:
                         distance = geodesic(
@@ -513,5 +513,5 @@ def main():
                         ).kilometers
                         st.write(f"📍 Distance: {distance:.1f} km")
 
-if _name_ == "_main_":
-    main()
+if __name__ == "__main__":
+    main()
