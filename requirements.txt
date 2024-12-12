@@ -5,4 +5,3 @@ numpy
 geopy
 folium
 streamlit-folium
-folium-plugins
