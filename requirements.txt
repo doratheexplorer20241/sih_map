@@ -5,3 +5,4 @@ numpy
 geopy
 folium
 streamlit-folium
+streamlit_lottie
